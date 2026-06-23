@@ -18,12 +18,16 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.serializer.DeserializationException;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
 public class KafkaConfig {
+
+	private static final String TRUSTED_PACKAGES = "com.aaryaman.eventanalytics.dto";
 
 	@Value("${spring.kafka.bootstrap-servers}")
 	private String bootstrapServers;
@@ -72,13 +76,17 @@ public class KafkaConfig {
 		config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 		config.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
 		config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-		config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-		config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-		config.put(JsonDeserializer.TRUSTED_PACKAGES, "com.aaryaman.eventanalytics.dto");
-		config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, EventRequest.class.getName());
-		config.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+		config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
 
-		return new DefaultKafkaConsumerFactory<>(config);
+		JsonDeserializer<EventRequest> jsonDeserializer = new JsonDeserializer<>(EventRequest.class);
+		jsonDeserializer.addTrustedPackages(TRUSTED_PACKAGES);
+		jsonDeserializer.setUseTypeHeaders(false);
+
+		ErrorHandlingDeserializer<EventRequest> errorHandlingDeserializer =
+				new ErrorHandlingDeserializer<>(jsonDeserializer);
+
+		return new DefaultKafkaConsumerFactory<>(
+				config, new StringDeserializer(), errorHandlingDeserializer);
 	}
 
 	@Bean
@@ -87,6 +95,7 @@ public class KafkaConfig {
 				(record, exception) -> dltProducer.publishFailedRecord(record, exception),
 				new FixedBackOff(0L, 0L));
 		errorHandler.setCommitRecovered(true);
+		errorHandler.addNotRetryableExceptions(DeserializationException.class);
 		return errorHandler;
 	}
 

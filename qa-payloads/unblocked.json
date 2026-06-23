@@ -1,0 +1,8 @@
+﻿{
+  "event_id": "44444444-4444-4444-4444-444444444444",
+  "event_type": "RFP_CREATED",
+  "aggregate_id": "55555555-5555-5555-5555-555555555555",
+  "user_id": "qa",
+  "payload": { "status": "unblocked" },
+  "occurred_at": "2026-06-23T10:00:00Z"
+}
